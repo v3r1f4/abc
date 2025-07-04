@@ -39,6 +39,9 @@ cv.destroyAllWindows()
 
 ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
 
+# mtx: ma trận nội tại
+# dist: hệ số méo
+
 np.savez('calib_data.npz', mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
 
 img1 = cv.imread('samples/1.jpg')
