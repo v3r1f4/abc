@@ -22,7 +22,7 @@ for fname in images:
 
     # Find the chess board corners
     ret, corners = cv.findChessboardCorners(gray, (9,6), None)
-
+    print(ret)
     # If found, add object points, image points (after refining them)
     if ret == True:
         objpoints.append(objp)
@@ -32,8 +32,8 @@ for fname in images:
 
         # Draw and display the corners
         cv.drawChessboardCorners(img, (9,6), corners2, ret)
-        #cv.imshow('img', img)
-        #cv.waitKey(500)
+        cv.imshow('img', img)
+        cv.waitKey(500)
 
 cv.destroyAllWindows()
 
@@ -44,15 +44,15 @@ ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.sha
 
 np.savez('calib_data.npz', mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
 
-img1 = cv.imread('samples/1.jpg')
+img1 = cv.imread('samples/3.jpg')
 h1, w1 = img1.shape[:2]
-newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w1,h1), 1, (w1,h1))
+newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w1,h1), 0.5, (w1,h1))
 
 dst = cv.undistort(img1, mtx, dist, None, newcameramtx)
 
 x, y, w1, h1 = roi
 dst = dst[y:y+h1, x:x+w1]
-cv.imwrite('result1.jpg', dst)
+cv.imwrite('result3.jpg', dst)
 
 mean_error = 0
 for i in range(len(objpoints)):
