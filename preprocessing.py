@@ -13,18 +13,27 @@ def preprocess_image(img_input):
     _, img_binary = cv2.threshold(img_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return img_binary
 
-# Đọc ảnh đầu vào
-img = cv2.imread('ArUco/10.png')
 
-# Xử lý ảnh
-img_result = preprocess_image(img)
-
-# Tạo thư mục output nếu chưa có
 output_dir = 'output'
 os.makedirs(output_dir, exist_ok=True)
 
-# Lưu ảnh gốc và ảnh đã xử lý
-cv2.imwrite(os.path.join(output_dir, 'original.jpg'), img)
-cv2.imwrite(os.path.join(output_dir, 'preprocessed.jpg'), img_result)
 
-print("Ảnh đã được lưu trong thư mục 'output/'")
+input_dir = 'ArUco'
+
+for filename in os.listdir(input_dir):
+    if filename.lower().endswith('.jpg'):
+        img_path = os.path.join(input_dir, filename)
+        img = cv2.imread(img_path)
+
+        if img is None:
+            print(f"cant read {filename}")
+            continue
+
+        img_result = preprocess_image(img)
+
+        base_name = os.path.splitext(filename)[0]
+        cv2.imwrite(os.path.join(output_dir, f'{base_name}_original.jpg'), img)
+        cv2.imwrite(os.path.join(output_dir, f'{base_name}_preprocessed.jpg'), img_result)
+
+        print(f"{filename}")
+
