@@ -1,4 +1,3 @@
-import numpy as np
 import cv2
 import os
 
@@ -21,7 +20,7 @@ os.makedirs(output_dir, exist_ok=True)
 input_dir = 'ArUco'
 
 for filename in os.listdir(input_dir):
-    if filename.lower().endswith('.jpg'):
+    if filename.lower().endswith('.jpg') or filename.lower().endswith('.png'):
         img_path = os.path.join(input_dir, filename)
         img = cv2.imread(img_path)
 
