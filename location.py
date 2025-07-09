@@ -1,14 +1,13 @@
 import cv2
 import numpy as np
 from scipy.spatial.transform import Rotation
-import os
 
 class ArUcoImageProcessor:
     def __init__(self, camera_matrix, dist_coeffs, marker_length):
         self.camera_matrix = camera_matrix
         self.dist_coeffs = dist_coeffs
         self.marker_length = marker_length
-        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
         self.parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.parameters)
 
@@ -17,11 +16,11 @@ class ArUcoImageProcessor:
 
     def detect_markers(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        corners, ids, rejected = self.detector.detectMarkers(gray)
+        corners, ids, _ = self.detector.detectMarkers(gray)
 
         if ids is not None:
-            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                corners, self.marker_length, self.camera_matrix, self.dist_coeffs)
+            # Sử dụng estimatePoseSingleMarkers giống checking.py
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, self.marker_length, self.camera_matrix, self.dist_coeffs)
             return corners, ids, rvecs, tvecs
         return None, None, None, None
 
@@ -48,24 +47,24 @@ class ArUcoImageProcessor:
         return image
 
     def get_marker_coordinates(self, rvec, tvec):
-        position_camera = tvec[0]
+        position_camera = tvec[0]  # Với estimatePoseSingleMarkers, tvec có shape (1, 1, 3)
         rotation_matrix, _ = cv2.Rodrigues(rvec)
         rotation = Rotation.from_matrix(rotation_matrix)
         euler_angles = rotation.as_euler('xyz', degrees=True)
         return position_camera, euler_angles
 
     def set_origin_by_click(self, image):
-        def mouse_callback(event, x, y, flags, param):
+        def mouse_callback(event, x, y, ___, __):
             if event == cv2.EVENT_LBUTTONDOWN:
                 self.origin_pixel = (x, y)
                 print(f"Đã đặt gốc tọa độ tại: ({x}, {y})")
 
-        print("Click vào ảnh để đặt gốc tọa độ, nhấn ESC để tiếp tục...")
+        print("Click vào ảnh để đặt gốc tọa độ, nhấn ENTER để tiếp tục...")
         cv2.namedWindow('Set Origin', cv2.WINDOW_NORMAL)
         cv2.setMouseCallback('Set Origin', mouse_callback)
 
         temp_image = image.copy()
-        cv2.putText(temp_image, "Click to set origin, press ESC to continue", 
+        cv2.putText(temp_image, "Click to set origin, press ENTER to continue", 
                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         while True:
@@ -78,7 +77,7 @@ class ArUcoImageProcessor:
 
             cv2.imshow('Set Origin', display_image)
             key = cv2.waitKey(1) & 0xFF
-            if key == 27:
+            if key == 13:  # Enter key
                 break
 
         cv2.destroyWindow('Set Origin')
@@ -133,6 +132,11 @@ class ArUcoImageProcessor:
 
         marker_info = {}
 
+        # Tìm marker đầu tiên để làm gốc tọa độ thế giới nếu chưa có origin
+        origin_tvec = None
+        if len(tvecs) > 0:
+            origin_tvec = tvecs[0][0]  # Lấy marker đầu tiên làm gốc
+
         for i in range(len(ids)):
             marker_id = ids[i][0]
             rvec = rvecs[i]
@@ -142,7 +146,35 @@ class ArUcoImageProcessor:
             position_camera, euler_angles = self.get_marker_coordinates(rvec, tvec)
             corner_points = corners[i][0]
             center_pixel = np.mean(corner_points, axis=0)
-            world_2d = self.pixel_to_world_coordinates(center_pixel)
+            
+            # Tính tọa độ tương đối so với origin (nếu có origin_pixel thì dùng pixel, nếu không thì dùng marker đầu tiên)
+            if self.origin_pixel is not None:
+                # Sử dụng pixel-to-world conversion với tỷ lệ phù hợp
+                # Ước tính tỷ lệ từ khoảng cách thực và khoảng cách pixel
+                if len(tvecs) >= 2:
+                    # Tính tỷ lệ pixel/meter từ 2 marker đầu tiên
+                    tvec1 = tvecs[0][0]
+                    tvec2 = tvecs[1][0]
+                    real_distance = np.linalg.norm(tvec1 - tvec2)
+                    
+                    corners1 = corners[0][0]
+                    corners2 = corners[1][0]
+                    center1 = np.mean(corners1, axis=0)
+                    center2 = np.mean(corners2, axis=0)
+                    pixel_distance = np.linalg.norm(center1 - center2)
+                    
+                    if pixel_distance > 0:
+                        self.pixel_to_meter_ratio = pixel_distance / real_distance
+                
+                world_2d = self.pixel_to_world_coordinates(center_pixel)
+            else:
+                # Nếu không có origin_pixel, dùng marker đầu tiên làm gốc
+                if origin_tvec is not None:
+                    marker_tvec = tvec[0]
+                    relative_pos = marker_tvec - origin_tvec
+                    world_2d = (relative_pos[0], relative_pos[1])
+                else:
+                    world_2d = (position_camera[0], position_camera[1])
 
             text_pos = (int(center_pixel[0]) + 10, int(center_pixel[1]) - 10)
             cv2.putText(result_image, f"ID: {marker_id}", 
@@ -159,7 +191,7 @@ class ArUcoImageProcessor:
 
             marker_info[marker_id] = {
                 'position_3d_camera': position_camera,
-                'position_2d_world': world_2d,
+                'position_2d_world': world_2d,  # mét
                 'rotation_euler': euler_angles,
                 'pixel_center': center_pixel
             }
@@ -174,13 +206,13 @@ def main():
     dist_coeffs = calib_data['dist']
     
     # Kích thước marker (mét)
-    marker_length = 0.09  # 5cm
+    marker_length = 0.13  # 5cm
     
     # Khởi tạo processor
     processor = ArUcoImageProcessor(camera_matrix, dist_coeffs, marker_length)
     
     # PHẦN SỬA LỖI - Xử lý đường dẫn ảnh
-    default_image_path = "ArUco/10.png"
+    default_image_path = "ArUco/12.jpg"
     
     # Đọc ảnh
     print(f"Đang đọc ảnh: {default_image_path}")
