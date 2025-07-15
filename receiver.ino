@@ -1,36 +1,27 @@
 #include <painlessMesh.h>
-#include <ArduinoJson.h>
 
-#define MESH_PREFIX "ESP32MESH"
-#define MESH_PASSWORD "12345678"
-#define MESH_PORT 5555
+#define MESH_PREFIX     "robot_mesh"
+#define MESH_PASSWORD   "12345678"
+#define MESH_PORT       5555
+#define RXD2 16
+#define TXD2 17
 
+Scheduler userScheduler;
 painlessMesh mesh;
 
-const int myID = 3;  // ⚠️ Đổi thành 1, 2, hoặc 3 cho từng con ESP32
-
 void receivedCallback(uint32_t from, String &msg) {
-  DynamicJsonDocument doc(1024);
-  DeserializationError error = deserializeJson(doc, msg);
-
-  if (!error) {
-    int target = doc["target"];
-    const char* message = doc["msg"];
-
-    if (target == myID) {
-      Serial.printf("👉 Message for me (ID %d): %s\n", myID, message);
-    } else {
-      Serial.printf("⛔ Not for me (My ID: %d, Target: %d)\n", myID, target);
-    }
-  } else {
-    Serial.println("❌ JSON Parse Failed");
-  }
+  msg.trim();
+  
+  char buffer[50];
+  snprintf(buffer, sizeof(buffer), "%s\n", msg.c_str());
+  Serial2.print(buffer);
 }
 
 void setup() {
   Serial.begin(115200);
+  Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
   mesh.onReceive(&receivedCallback);
 }
 
