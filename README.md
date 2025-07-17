@@ -1,8 +1,3 @@
-- camera_calibration.py: Hiệu chỉnh camera lần đầu
-- preprocessing.py: Tiền xử lý ảnh ArUco
+### Boards Manager
 
-Trước hiệu chuẩn camera:
-![](samples/1.jpg)
-
-Sau hiệu chuẩn camera:
-![](result.jpg)
+- Cài **esp32** phiên bản 3.0.7 để tránh bị lỗi `assert failed: tcp_alloc /IDF/components/lwip/lwip/src/core/tcp.c:1854 (Required to lock TCPIP core functionality!)`
