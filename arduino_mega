@@ -1,0 +1,106 @@
+#include <AccelStepper.h>
+#include <BasicLinearAlgebra.h>
+using namespace BLA;
+
+const size_t output[4][4] = {
+  {24, 25, 26, 27},
+  {28, 29, 30, 31},
+  {32, 33, 34, 35},
+  {36, 37, 38, 39}
+};
+
+#define HALFSTEP 8
+
+AccelStepper* steppers[4];
+size_t motorSpeed[4] = {1200, 1200, 1200, 1200};
+size_t motorAccel[4] = {200, 200, 200, 200};
+
+BLA::Matrix<4, 3> A_inv = {
+  -0.35355, -0.35355, -3.33333,
+  -0.35355,  0.35355, -3.33333,
+   0.35355,  0.35355,  3.33333,
+   0.35355, -0.35355,  3.33333
+};
+
+float vx = 0, vy = 0, omega = 0;
+BLA::Matrix<3, 1> P = {vx, vy, omega};
+BLA::Matrix<4, 1> V;
+float dir[4];
+
+// Hàm phân tích chuỗi thủ công
+bool parseInput(String input, float &a, float &b, float &c) {
+  input.trim();
+  input.replace("\r", "");
+  
+  int firstSpace = input.indexOf(' ');
+  int secondSpace = input.indexOf(' ', firstSpace + 1);
+  
+  if (firstSpace == -1 || secondSpace == -1) {
+    return false;
+  }
+  
+  String aStr = input.substring(0, firstSpace);
+  String bStr = input.substring(firstSpace + 1, secondSpace);
+  String cStr = input.substring(secondSpace + 1);
+  
+  a = aStr.toFloat();
+  b = bStr.toFloat();
+  c = cStr.toFloat();
+  
+  if (aStr.length() == 0 || bStr.length() == 0 || cStr.length() == 0) {
+    return false;
+  }
+  
+  return true;
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial1.begin(115200);
+  
+  // Khởi tạo động cơ
+  for (size_t j = 0; j < 4; j++) {
+    steppers[j] = new AccelStepper(HALFSTEP, output[j][0], output[j][2], output[j][1], output[j][3]);
+    steppers[j]->setMaxSpeed(1000);
+    steppers[j]->setAcceleration(motorAccel[j]);
+    steppers[j]->setSpeed(0);
+  }
+}
+void loop() {
+  if (Serial1.available()) {
+    String input = Serial1.readStringUntil('\n');
+    input.trim();
+    input.replace("\r", "");
+    
+    float a, b, c;
+    if (parseInput(input, a, b, c)) {
+      vx = a;
+      vy = b;
+      omega = c;
+      // Tính toán tốc độ động cơ
+      P = {vx, vy, omega};
+      V = A_inv * P;
+      for (size_t j = 0; j < 4; j++) {
+        dir[j] = V(j, 0);
+        float speed = motorSpeed[j] * dir[j] * 1.45;
+        steppers[j]->setSpeed(speed);
+      }
+      
+      // Chạy động cơ cho đến khi nhận lệnh mới
+      while (Serial1.available() == 0) {
+        for (size_t j = 0; j < 4; j++) {
+          steppers[j]->runSpeed();
+        }
+      }
+      
+      // Dừng động cơ
+      for (size_t j = 0; j < 4; j++) {
+        steppers[j]->setSpeed(0);
+        steppers[j]->runSpeed();
+      }
+    } else {
+      Serial.println("⚠️ Không phân tích được lệnh!");
+    }
+  }
+  delay(10);
+}
