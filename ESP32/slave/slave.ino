@@ -26,7 +26,7 @@ void receivedCallback(uint32_t from, String &msg) {
 
 void setup() {
   Serial.begin(38400);
-  Serial2.begin(38400, RX2, TX2);
+  Serial2.begin(38400, SERIAL_8N1, RX2, TX2);
   
   // mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
   mesh.init(SSID, PASSWORD, PORT);

@@ -54,6 +54,8 @@ void setup() {
     steppers[j]->setMaxSpeed(1000);
     steppers[j]->setAcceleration(motorAccel[j]);
   }
+
+  Serial1.begin(38400);
 }
 
 void loop() {
@@ -117,4 +119,24 @@ void loop() {
       steppers[j]->runSpeed();
     }
   }
+
+  if (Serial1.available()) {
+    String receivedData = Serial1.readStringUntil('\n');
+    receivedData.trim();
+    
+    Serial.println("Received from ESP32: " + receivedData);
+    
+    processCommand(receivedData);
+  }
+}
+
+void processCommand(String command) {
+  int firstSpace = command.indexOf(' ');
+  int secondSpace = command.indexOf(' ');
+
+  float vx = command.substring(0, firstSpace).toFloat();
+  float vy = command.substring(firstSpace + 1, secondSpace).toFloat();
+  float omega = command.substring(secondSpace + 1).toFloat();
+
+  Serial.printf("Parsed: vx=%.2f, vy=%.2f, omega=%.2f\n", vx, vy, omega);
 }
