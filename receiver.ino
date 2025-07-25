@@ -6,7 +6,7 @@
 
 #define RXD2 16
 #define TXD2 17
-#define NODE_ID 1  
+#define NODE_ID 2  
 
 Scheduler userScheduler;
 painlessMesh mesh;
@@ -23,11 +23,13 @@ void receivedCallback(uint32_t from, String &msg) {
 
   // Kiểm tra ID khớp
   if (targetID != "all" && targetID.toInt() != NODE_ID) {
-    return;  
+    return;  // Không phải lệnh cho node này
   }
 
   // Gửi payload (vx vy omega) ra Serial2
   Serial2.print(payload + "\n");
+
+  // In ra monitor để kiểm tra
   Serial.printf("NODE %d nhận: %s\n", NODE_ID, payload.c_str());
 }
 
