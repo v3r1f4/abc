@@ -1,41 +1,91 @@
-#include <painlessMesh.h>
+// MAC Address: d0:ef:76:47:4d:34
 
-#define SSID "ba_con_bon_banh_omni"
-#define PASSWORD "24681012"
-#define PORT 5555
+#include <esp_now.h>
+#include <WiFi.h>
 
-painlessMesh mesh;
+// REPLACE WITH YOUR RECEIVER MAC Address
+uint8_t broadcastAddress1[] = {0x14, 0x33, 0x5C, 0x04, 0x61, 0x18};
+uint8_t broadcastAddress2[] = {0x1C, 0x69, 0x20, 0xA4, 0xD0, 0x58};
+uint8_t broadcastAddress3[] = {0x94, 0xB9, 0x7E, 0xFB, 0x23, 0xF0};
 
-void sendCommand(String input) {
-  int firstSpace = input.indexOf(' ');
-  int secondSpace = input.indexOf(' ', firstSpace + 1);
-  int thirdSpace = input.indexOf(' ', secondSpace + 1);
+// Structure example to send data
+// Must match the receiver structure
+typedef struct data_struct {
+  int id;
+  float vx;
+  float vy;
+  float omega;
+} data_struct;
 
-  int slaveID = input.substring(0, firstSpace).toInt();
-  float vx = input.substring(firstSpace + 1, secondSpace).toFloat();
-  float vy = input.substring(secondSpace + 1, thirdSpace).toFloat();
-  float omega = input.substring(thirdSpace + 1).toFloat();
+// Create a struct_message called myData
+data_struct myData;
 
-  char buffer[50];
-  snprintf(buffer, sizeof(buffer), "%u %.1f %.1f %.1f", slaveID, vx, vy, omega);
-  
-  mesh.sendBroadcast(String(buffer));
-  Serial.printf("Sent: %s\n", buffer);
+esp_now_peer_info_t peerInfo;
+
+// callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
-
+ 
 void setup() {
-  Serial.begin(38400);
-  // mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
-  mesh.init(SSID, PASSWORD, PORT);
-}
+  // Init Serial Monitor
+  Serial.begin(115200);
+ 
+  // Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
 
-void loop() {
-  mesh.update();
-
-  if (Serial.available()) {
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    
-    sendCommand(input);
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
   }
+
+  // Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_register_send_cb(OnDataSent);
+  
+  // Register peer
+  peerInfo.channel = 0;  
+  peerInfo.encrypt = false;
+
+  // Regster first peer
+  memcpy(peerInfo.peer_addr, broadcastAddress1, 6);    
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+
+  // Regster second peer
+  memcpy(peerInfo.peer_addr, broadcastAddress2, 6);    
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+
+  // Regster third peer
+  memcpy(peerInfo.peer_addr, broadcastAddress3, 6);    
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+}
+ 
+void loop() {
+  // Set values to send
+  myData.id = 1;
+  myData.vx = 2.3;
+  myData.vy = 2.2;
+  myData.omega = 3.3;
+  
+  // Send message via ESP-NOW
+  esp_err_t result = esp_now_send(broadcastAddress1, (uint8_t *) &myData, sizeof(myData));
+   
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+  }
+  else {
+    Serial.println("Error sending the data");
+  }
+  delay(2000);
 }
