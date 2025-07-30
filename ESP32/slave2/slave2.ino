@@ -12,7 +12,7 @@ void readMacAddress(){
                   baseMac[3], baseMac[4], baseMac[5]);
   } else {
     Serial.println("Failed to read MAC address");
-  }
+  } 
 }
 
 void setup(){
