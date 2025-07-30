@@ -1,39 +1,33 @@
 // MAC Address: 14:33:5c:04:61:18
 
-#include <WiFi.h>
 #include <esp_now.h>
+#include <WiFi.h>
 
-typedef struct data_struct {
-  int id;
-  float vx;
-  float vy;
-  float omega;
-} data_struct;
+#define TXD2 17
+#define RXD2 -1
 
-data_struct incomingData;
+void OnDataRecv(const esp_now_recv_info_t *, const uint8_t *data, int len) {
+  String msg = "";
+  for (int i = 0; i < len; i++) msg += (char)data[i];
 
-void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingDataRaw, int len) {
-  memcpy(&incomingData, incomingDataRaw, sizeof(incomingData));
-  Serial.print("Received id (int): ");
-  Serial.println(incomingData.id);
-  Serial.print("Received vx (float): ");
-  Serial.println(incomingData.vx);
-  Serial.print("Received vy (float): ");
-  Serial.println(incomingData.vy);
-  Serial.print("Received omega (float): ");
-  Serial.println(incomingData.omega);
+  Serial.print("ESP32 nhận: ");
+  Serial.println(msg);
+
+  Serial2.println(msg);  // Gửi sang Mega
 }
 
 void setup() {
   Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
+  Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
 
+  WiFi.mode(WIFI_STA);
   if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
-    return;
+    Serial.println("ESP-NOW init thất bại");
+    while (1);
   }
 
   esp_now_register_recv_cb(OnDataRecv);
+  Serial.println("ESP32 Slave sẵn sàng...");
 }
 
 void loop() {}
