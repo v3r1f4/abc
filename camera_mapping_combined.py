@@ -483,10 +483,10 @@ class CameraMappingCombined:
         
         # Setup map axes
         self.ax_map.set_aspect('equal')
-        self.ax_map.set_xlim(-1, 1)
-        self.ax_map.set_ylim(-1, 1)
-        self.ax_map.set_xticks(np.arange(-1, 1.1, 0.2))
-        self.ax_map.set_yticks(np.arange(-1, 1.1, 0.2))
+        self.ax_map.set_xlim(-3, 3)
+        self.ax_map.set_ylim(-3, 3)
+        self.ax_map.set_xticks(np.arange(-3, 3.1, 0.2))
+        self.ax_map.set_yticks(np.arange(-3, 3.1, 0.2))
         self.ax_map.axhline(0, color='black', zorder=1)
         self.ax_map.axvline(0, color='black', zorder=1)
         self.ax_map.grid(True, zorder=0)
