@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from scipy.spatial.transform import Rotation
 import threading
+import serial
 import queue
 import time
-import serial
-import serial.tools.list_ports
 
 class ArUcoImageProcessor:
     def __init__(self, camera_matrix, dist_coeffs, marker_length):
@@ -17,6 +16,8 @@ class ArUcoImageProcessor:
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
         self.parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.parameters)
+
+        self.port = serial.Serial('COM1', 115200, timeout=1)
 
         self.origin_pixel = None
         self.pixel_to_meter_ratio = 1
@@ -56,7 +57,7 @@ class ArUcoImageProcessor:
         rotation_matrix, _ = cv2.Rodrigues(rvec)
         rotation = Rotation.from_matrix(rotation_matrix)
         euler_angles = rotation.as_euler('xyz', degrees=True)
-        print(position_camera, euler_angles)
+        # print(position_camera, euler_angles)
         return position_camera, euler_angles
 
     def pixel_to_world_coordinates(self, pixel_point):
@@ -66,31 +67,54 @@ class ArUcoImageProcessor:
         dx_pixel = pixel_point[0] - self.origin_pixel[0]
         dy_pixel = pixel_point[1] - self.origin_pixel[1]
 
-        x_world = dx_pixel/self.pixel_to_meter_ratio
+        x_world = -dx_pixel/self.pixel_to_meter_ratio  # Đảo chiều trục X
         y_world = dy_pixel/self.pixel_to_meter_ratio
 
         return (x_world, y_world)
 
     def draw_origin_coordinate_system(self, image):
-        if self.origin_pixel is None:
-            return image
+        origin_pixel = self.origin_pixel_pos if hasattr(self, 'origin_pixel_pos') and self.origin_pixel_pos is not None else self.origin_pixel
+        
+        if origin_pixel is None:
+            origin_pixel = (20, 20)  # Fallback
+        
+        # Vẽ điểm gốc tọa độ
+        cv2.circle(image, origin_pixel, 12, (0, 0, 255), -1)
+        cv2.circle(image, origin_pixel, 15, (255, 255, 255), 2)
 
-        cv2.circle(image, self.origin_pixel, 8, (0, 0, 255), -1)
+        axis_length = 80
+        
+        # Trục X (màu đỏ)
+        x_end = (origin_pixel[0] - axis_length, origin_pixel[1])
+        cv2.arrowedLine(image, origin_pixel, x_end, (0, 0, 255), 4)
+        cv2.putText(image, 'X', (x_end[0] - 20, x_end[1]), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
 
-        axis_length = 60
-        x_end = (self.origin_pixel[0] + axis_length, self.origin_pixel[1])
-        cv2.arrowedLine(image, self.origin_pixel, x_end, (0, 0, 255), 3)
-        cv2.putText(image, 'X', (x_end[0] + 5, x_end[1]), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        # Trục Y (màu xanh lá)
+        y_end = (origin_pixel[0], origin_pixel[1] + axis_length)
+        cv2.arrowedLine(image, origin_pixel, y_end, (0, 255, 0), 4)
+        cv2.putText(image, 'Y', (y_end[0] + 10, y_end[1]), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 3)
 
-        y_end = (self.origin_pixel[0], self.origin_pixel[1] + axis_length)
-        cv2.arrowedLine(image, self.origin_pixel, y_end, (0, 255, 0), 3)
-        cv2.putText(image, 'Y', (y_end[0] + 5, y_end[1]), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-        cv2.putText(image, 'ORIGIN (0,0)', 
-                   (self.origin_pixel[0] + 15, self.origin_pixel[1] - 25),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        # Vẽ chữ O và ORIGIN
+        cv2.putText(image, 'O', (origin_pixel[0] - 15, origin_pixel[1] - 20), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
+        
+        # Hiển thị thông tin origin
+        if hasattr(self, 'origin_set') and self.origin_set:
+            cv2.putText(image, 'ORIGIN (0,0) - MARKER ID0', 
+                       (origin_pixel[0] + 20, origin_pixel[1] - 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        else:
+            cv2.putText(image, 'ORIGIN (0,0) - NO MARKER ID0', 
+                       (origin_pixel[0] + 20, origin_pixel[1] - 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        
+        # Hiển thị trạng thái origin ở góc dưới
+        status_text = "Origin: MARKER ID0 SET" if hasattr(self, 'origin_set') and self.origin_set else "Origin: MARKER ID0 NOT FOUND"
+        status_color = (0, 255, 0) if hasattr(self, 'origin_set') and self.origin_set else (0, 0, 255)
+        cv2.putText(image, status_text, (10, image.shape[0] - 20), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
 
         return image
 
@@ -136,7 +160,7 @@ class ArUcoImageProcessor:
                 else:
                     marker_tvec = tvec[0]
                     relative_pos = marker_tvec - origin_tvec
-                    world_2d = (relative_pos[0], relative_pos[1])
+                    world_2d = (-relative_pos[0], relative_pos[1])  # Đảo chiều trục X
 
                 text_pos = (int(center_pixel[0]) + 10, int(center_pixel[1]) - 10)
                 cv2.putText(result_image, f"ID: {marker_id}",
@@ -182,6 +206,12 @@ class CameraMappingCombined:
         self.robot_y = 0
         self.robot_heading = 0
         
+        # Origin marker setup để đồng bộ hệ tọa độ
+        self.origin_marker_id = 0  # ID của marker làm gốc tọa độ
+        self.origin_position_3d = None  # Vị trí 3D của origin marker
+        self.origin_pixel_pos = None  # Vị trí pixel của origin marker trên camera
+        self.origin_set = False
+        
         # Marker timeout - remove markers not seen for this duration (seconds)
         self.marker_timeout = 0.1  # 2 giây
         
@@ -202,77 +232,12 @@ class CameraMappingCombined:
         self.image_queue = queue.Queue()
         self.running = True
         
-        # Set origin at top-left with small offset
+        # Set origin at top-left with small offset (fallback nếu không có marker origin)
         self.processor.origin_pixel = (20, 20)
-        
-        # Serial communication for sending to ESP32
-        self.serial_connection = None
-        self.init_serial_connection()
         
         # Command sending parameters
         self.last_command_time = {}  # Track last command time for each marker
         self.command_interval = 0.1  # Send commands every 100ms
-        
-    def init_serial_connection(self):
-        """Khởi tạo kết nối serial với ESP32 sender"""
-        try:
-            # Tự động tìm cổng COM
-            ports = serial.tools.list_ports.comports()
-            for port in ports:
-                if 'CH340' in port.description or 'CP210' in port.description or 'Arduino' in port.description:
-                    try:
-                        self.serial_connection = serial.Serial(port.device, 115200, timeout=1)
-                        print(f"Đã kết nối với ESP32 sender qua {port.device}")
-                        time.sleep(2)  # Chờ ESP32 khởi động
-                        return
-                    except:
-                        continue
-            
-            # Nếu không tìm thấy, thử các cổng thông dụng
-            common_ports = ['COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8']
-            for port in common_ports:
-                try:
-                    self.serial_connection = serial.Serial(port, 115200, timeout=1)
-                    print(f"Đã kết nối với ESP32 sender qua {port}")
-                    time.sleep(2)
-                    return
-                except:
-                    continue
-                    
-            print("Không thể kết nối với ESP32 sender")
-        except Exception as e:
-            print(f"Lỗi khi khởi tạo serial: {e}")
-    
-    def send_position_command(self, marker_id, x, y, heading):
-        """Gửi lệnh vị trí đến ESP32 thông qua sender.ino"""
-        if self.serial_connection is None:
-            return
-            
-        current_time = time.time()
-        
-        # Kiểm tra interval để không gửi quá nhiều lệnh
-        if marker_id in self.last_command_time:
-            if current_time - self.last_command_time[marker_id] < self.command_interval:
-                return
-                
-        try:
-            # Format: "ID vx vy omega" 
-            # Tạm thời gửi vị trí thay vì vận tốc
-            # Có thể điều chỉnh để tính toán vận tốc từ sự thay đổi vị trí
-            vx = x * 10  # Scale factor để chuyển từ m sang cm
-            vy = y * 10
-            omega = np.degrees(heading)  # Chuyển từ radian sang độ
-            
-            command = f"{marker_id} {vx:.2f} {vy:.2f} {omega:.2f}\n"
-            self.serial_connection.write(command.encode())
-            
-            print(f"Sent to ESP32: {command.strip()}")
-            self.last_command_time[marker_id] = current_time
-            
-        except Exception as e:
-            print(f"Lỗi khi gửi lệnh serial: {e}")
-            # Thử kết nối lại
-            self.init_serial_connection()
         
     def apply_filter(self, marker_id, x, y, heading):
         """Áp dụng bộ lọc trung bình để giảm nhiễu cho từng marker riêng biệt"""
@@ -313,11 +278,15 @@ class CameraMappingCombined:
         while self.running:
             ret, frame = self.cap.read()
             if not ret:
-                print("Cannot read camera frame")
+                # print("Cannot read camera frame")
                 continue
                 
             # Process frame to detect markers
             result_image, marker_info = self.processor.process_image(frame, set_origin=False)
+            
+            # Truyền thông tin origin status xuống processor để hiển thị
+            self.processor.origin_set = self.origin_set
+            self.processor.origin_pixel_pos = self.origin_pixel_pos
             
             # Get current time for marker timeout tracking
             current_time = time.time()
@@ -325,21 +294,40 @@ class CameraMappingCombined:
             # Debug: Print all detected markers
             if marker_info:
                 detected_ids = list(marker_info.keys())
-                print(f"Detected markers: {detected_ids}")
+                # print(f"Detected markers: {detected_ids}")
+                
+                # Kiểm tra và set origin nếu có marker origin
+                if self.origin_marker_id in marker_info:
+                    origin_info = marker_info[self.origin_marker_id]
+                    self.origin_position_3d = origin_info['position_3d_camera']
+                    self.origin_pixel_pos = tuple(origin_info['pixel_center'].astype(int))
+                    if not self.origin_set:
+                        self.origin_set = True
+                        # print(f"Origin set at marker ID{self.origin_marker_id}: 3D{self.origin_position_3d}, Pixel{self.origin_pixel_pos}")
                 
                 # Process all detected markers
                 for robot_marker_id in detected_ids:
                     info = marker_info[robot_marker_id]
-                    # Use 3D camera coordinates directly (more reliable)
                     position_3d = info['position_3d_camera']
-                    x = position_3d[0]  # X from camera
-                    y = position_3d[1]  # Y from camera
+                    
+                    # Tính tọa độ relative từ origin nếu origin đã được set
+                    if self.origin_set and self.origin_position_3d is not None:
+                        # Tọa độ relative từ origin marker - đảo chiều trục X
+                        x = -(position_3d[0] - self.origin_position_3d[0])
+                        y = position_3d[1] - self.origin_position_3d[1]
+                    else:
+                        # Sử dụng tọa độ camera trực tiếp nếu chưa có origin - đảo chiều trục X
+                        x = -position_3d[0]
+                        y = position_3d[1]
                     
                     # Calculate heading from rotation
                     euler_angles = info['rotation_euler']
                     heading = np.radians(euler_angles[2])  # Z rotation in radians
                     
-                    print(f"Marker ID{robot_marker_id} at 3D({x:.3f}, {y:.3f}, {position_3d[2]:.3f}), heading: {np.degrees(heading):.1f}°")
+                    cmd = f"P {x:.3f} {y:.3f} {np.degrees(heading):.1f}\n"
+                    self.processor.port.write(cmd.encode())
+                    
+                    #print(f"Marker ID{robot_marker_id} at Relative({x:.3f}, {y:.3f}), 3D({position_3d[0]:.3f}, {position_3d[1]:.3f}, {position_3d[2]:.3f}), heading: {np.degrees(heading):.1f}°")
                     
                     # Put new position in queue with marker ID and timestamp
                     try:
@@ -390,7 +378,7 @@ class CameraMappingCombined:
         self.ax_map.grid(True, zorder=0)
         self.ax_map.set_xlabel('x (meters)')
         self.ax_map.set_ylabel('y (meters)')
-        self.ax_map.set_title("Multi-ArUco Markers 2D Real-time Position")
+        self.ax_map.set_title("Multi-ArUco Markers 2D Position\n(Place marker ID0 as origin, other markers show relative position)")
         
     def init_animation(self):
         """Khởi tạo animation cho multi-marker"""
@@ -411,8 +399,7 @@ class CameraMappingCombined:
         
         # Process all positions in queue
         position_updates = 0
-        current_frame_time = time.time()
-        
+
         while not self.position_queue.empty():
             try:
                 data = self.position_queue.get_nowait()
@@ -467,9 +454,6 @@ class CameraMappingCombined:
                             self.markers[marker_id]['trail_x'].pop(0)
                             self.markers[marker_id]['trail_y'].pop(0)
                 
-                # Send position to ESP32 via serial
-                self.send_position_command(marker_id, filtered_x, filtered_y, filtered_heading)
-                
                 print(f"Marker ID{marker_id} - Raw: ({x:.3f}, {y:.3f}, {np.degrees(heading):.1f}°) -> Filtered: ({filtered_x:.3f}, {filtered_y:.3f}, {np.degrees(filtered_heading):.1f}°)")
                 
             except queue.Empty:
@@ -492,11 +476,34 @@ class CameraMappingCombined:
         self.ax_map.grid(True, zorder=0)
         self.ax_map.set_xlabel('x (meters)')
         self.ax_map.set_ylabel('y (meters)')
-        self.ax_map.set_title("Multi-ArUco Markers 2D Real-time Position")
+        self.ax_map.set_title("Multi-ArUco Markers 2D Position\n(Place marker ID0 as origin, other markers show relative position)")
         
         # Draw all markers
         colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
         drawn_elements = []
+        
+        # Vẽ gốc tọa độ O tại (0,0) - tương ứng với marker ID 0
+        origin_circle = plt.Circle((0, 0), 0.03, fill=True, color='black', zorder=6)
+        self.ax_map.add_patch(origin_circle)
+        drawn_elements.append(origin_circle)
+        
+        # Vẽ trục tọa độ từ gốc
+        axis_length = 0.3
+        # Trục X (màu đỏ) - đảo chiều trục X
+        x_axis_line = self.ax_map.arrow(0, 0, -axis_length, 0, head_width=0.02, head_length=0.03, 
+                                       fc='red', ec='red', linewidth=2, zorder=6)
+        drawn_elements.append(x_axis_line)
+        x_label = self.ax_map.text(-axis_length - 0.05, 0, 'X', fontsize=10, color='red', weight='bold',
+                                  verticalalignment='center', horizontalalignment='right', zorder=7)
+        drawn_elements.append(x_label)
+        
+        # Trục Y (màu xanh lá)
+        y_axis_line = self.ax_map.arrow(0, 0, 0, axis_length, head_width=0.02, head_length=0.03, 
+                                       fc='green', ec='green', linewidth=2, zorder=6)
+        drawn_elements.append(y_axis_line)
+        y_label = self.ax_map.text(0, axis_length + 0.05, 'Y', fontsize=10, color='green', weight='bold',
+                                  verticalalignment='bottom', horizontalalignment='center', zorder=7)
+        drawn_elements.append(y_label)
         
         for i, (marker_id, marker_data) in enumerate(self.markers.items()):
             x, y, heading = marker_data['x'], marker_data['y'], marker_data['heading']
@@ -549,7 +556,7 @@ class CameraMappingCombined:
         # Setup and run matplotlib animation
         self.setup_plot()
         
-        FPS = 24  # Giống mapping.py
+        FPS = 60
         ani = FuncAnimation(self.fig, self.update_animation, init_func=self.init_animation,
                           interval=1000/FPS, blit=False, cache_frame_data=False)  # Changed blit=False for debugging
         
@@ -559,11 +566,6 @@ class CameraMappingCombined:
         self.running = False
         self.cap.release()
         cv2.destroyAllWindows()
-        
-        # Close serial connection
-        if self.serial_connection:
-            self.serial_connection.close()
-            print("Đã đóng kết nối serial")
 
 def main():
     app = CameraMappingCombined()
