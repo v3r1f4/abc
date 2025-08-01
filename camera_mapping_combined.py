@@ -503,6 +503,9 @@ class CameraMappingCombined:
                                   verticalalignment='bottom', horizontalalignment='center', zorder=7)
         drawn_elements.append(y_label)
         
+        # Track if we have any trails to show in legend
+        has_trails = False
+        
         for i, (marker_id, marker_data) in enumerate(self.markers.items()):
             x, y, heading = marker_data['x'], marker_data['y'], marker_data['heading']
             trail_x, trail_y = marker_data['trail_x'], marker_data['trail_y']
@@ -514,6 +517,7 @@ class CameraMappingCombined:
             if len(trail_x) > 1:
                 trail_line = self.ax_map.plot(trail_x, trail_y, color=color, alpha=0.5, linewidth=1, zorder=2, label=f'Trail ID{marker_id}')[0]
                 drawn_elements.append(trail_line)
+                has_trails = True
             
             # Draw robot circle
             circle = plt.Circle((x, y), 0.05, fill=False, color=color, linewidth=2, zorder=3)
@@ -535,8 +539,8 @@ class CameraMappingCombined:
                            zorder=5)
             drawn_elements.append(text)
         
-        # Show legend if there are markers
-        if self.markers:
+        # Show legend only if there are trails with labels
+        if has_trails:
             legend = self.ax_map.legend(loc='upper right', bbox_to_anchor=(1, 1), fontsize=8)
             drawn_elements.append(legend)
         

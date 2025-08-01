@@ -31,6 +31,8 @@ void loop() {
     int n = sscanf(msg.c_str(), "%f %f %f", &x, &y, &omega);
     Serial.print("Mega nhận: ");
     Serial.println(msg);
+    Serial.print("n = ");
+    Serial.println(n);
     if (n == 3) { // gửi vị trí
       Serial.println("n == 3");
     } else if (n == 2) { // thêm vị trí đích
