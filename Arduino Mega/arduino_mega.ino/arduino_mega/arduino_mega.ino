@@ -68,10 +68,12 @@ void loop() {
       target[i][0] = values[0];
       target[i][1] = values[1];
       Serial.println("n == 2 - Vị trí đích mới:");
-      Serial.print("x = ");
-      Serial.print(target[i][0]);
-      Serial.print(", y = ");
-      Serial.println(target[i][1]);
+      for (int j = 0; j <= i; j++) {
+        Serial.print("x["); Serial.print(j); Serial.print("] = ");
+        Serial.print(target[j][0]);
+        Serial.print(", y["); Serial.print(j); Serial.print("] = ");
+        Serial.println(target[j][1]);
+      }
       i += 1;
     }
   }

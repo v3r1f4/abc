@@ -75,7 +75,7 @@ class ArUcoImageProcessor:
         origin_pixel = self.origin_pixel_pos if hasattr(self, 'origin_pixel_pos') and self.origin_pixel_pos is not None else self.origin_pixel
         
         if origin_pixel is None:
-            origin_pixel = (20, 20)  # Fallback
+            origin_pixel = (20, 20)
         
         # Vẽ điểm gốc tọa độ
         cv2.circle(image, origin_pixel, 12, (0, 0, 255), -1)
@@ -83,13 +83,13 @@ class ArUcoImageProcessor:
 
         axis_length = 80
         
-        # Trục X (màu đỏ)
+        # Trục x (màu đỏ)
         x_end = (origin_pixel[0] - axis_length, origin_pixel[1])
         cv2.arrowedLine(image, origin_pixel, x_end, (0, 0, 255), 4)
         cv2.putText(image, 'X', (x_end[0] - 20, x_end[1]), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
 
-        # Trục Y (màu xanh lá)
+        # Trục y (màu xanh lá)
         y_end = (origin_pixel[0], origin_pixel[1] + axis_length)
         cv2.arrowedLine(image, origin_pixel, y_end, (0, 255, 0), 4)
         cv2.putText(image, 'Y', (y_end[0] + 10, y_end[1]), 
@@ -109,7 +109,7 @@ class ArUcoImageProcessor:
                        (origin_pixel[0] + 20, origin_pixel[1] - 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
-        # Hiển thị trạng thái origin ở góc dưới
+        # Hiển thị trạng thái gốc toạ độ ở góc dưới bên trái
         status_text = "Origin: MARKER ID0 SET" if hasattr(self, 'origin_set') and self.origin_set else "Origin: MARKER ID0 NOT FOUND"
         status_color = (0, 255, 0) if hasattr(self, 'origin_set') and self.origin_set else (0, 0, 255)
         cv2.putText(image, status_text, (10, image.shape[0] - 20), 
@@ -243,8 +243,7 @@ class CameraMappingCombined:
         self.terminal_thread_running = True
         
     def apply_filter(self, marker_id, x, y, heading):
-        """Áp dụng bộ lọc trung bình để giảm nhiễu cho từng marker riêng biệt"""
-        # Khởi tạo filter history cho marker mới
+        # Bộ lọc trung bình
         if marker_id not in self.marker_filters:
             self.marker_filters[marker_id] = {
                 'x_history': [],
