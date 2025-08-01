@@ -26,29 +26,54 @@ void loop() {
   if (Serial1.available()) {
     String msg = Serial1.readStringUntil('\n');
     msg.trim();
-    float x, y, omega;
-    float target_x, target_y;
-    int n = sscanf(msg.c_str(), "%f %f %f", &x, &y, &omega);
-    Serial.print("Mega nhận: ");
-    Serial.println(msg);
+
+    Serial.print("Mega nhận: '");
+    Serial.print(msg);
+    Serial.print("' (length: ");
+    Serial.print(msg.length());
+    Serial.println(")");
+
+    float values[3];
+    int n = 0;
+    int startIndex = 0;
+
+    // xử lý tín hiệu nhận
+    for (int j = 0; j <= msg.length(); j++) {
+      if (j == msg.length() || msg[j] == ' ') {
+        if (j > startIndex) {
+          String numberStr = msg.substring(startIndex, j);
+          values[n] = numberStr.toFloat();
+          n++;
+          if (n >= 3) break;
+        }
+        startIndex = j + 1;
+      }
+    }
+
     Serial.print("n = ");
     Serial.println(n);
-    if (n == 3) { // gửi vị trí
-      Serial.println("n == 3");
-    } else if (n == 2) { // thêm vị trí đích
-      target[i][0] = x;
-      target[i][1] = y;
-      Serial.println("Mảng vị trí: ");
-      Serial.print("target[");
-      Serial.print(i);
-      Serial.print("][0] = ");
+
+    if (n == 3) {  // gửi vị trí
+      float x = values[0];
+      float y = values[1];
+      float omega = values[2];
+      Serial.println("Vị trí hiện tại của robot:");
+      Serial.print("x = ");
+      Serial.print(x);
+      Serial.print(", y = ");
+      Serial.print(y);
+      Serial.print(", omega = ");
+      Serial.println(omega);
+    } else if (n == 2) {  // thêm vị trí đích
+      target[i][0] = values[0];
+      target[i][1] = values[1];
+      Serial.println("n == 2 - Vị trí đích mới:");
+      Serial.print("x = ");
       Serial.print(target[i][0]);
-      Serial.print(", target[");
-      Serial.print(i);
-      Serial.print("][1] = ");
+      Serial.print(", y = ");
       Serial.println(target[i][1]);
       i += 1;
     }
-    delay(1000);
   }
+  delay(1000);
 }
