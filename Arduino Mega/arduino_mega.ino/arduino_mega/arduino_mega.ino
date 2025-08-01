@@ -29,16 +29,14 @@ void loop() {
     float x, y, omega;
     float target_x, target_y;
     int n = sscanf(msg.c_str(), "%f %f %f", &x, &y, &omega);
+    Serial.print("Mega nhận: ");
+    Serial.println(msg);
     if (n == 3) { // gửi vị trí
-      Serial.print("Mega nhận: "); Serial.println(msg);
+      Serial.println("n == 3");
     } else if (n == 2) { // thêm vị trí đích
       target[i][0] = x;
       target[i][1] = y;
-      i += 1;
-    }
-
-    Serial.print("Mảng vị trí: ");
-    for (int i = 0; i < 100; i++) {
+      Serial.println("Mảng vị trí: ");
       Serial.print("target[");
       Serial.print(i);
       Serial.print("][0] = ");
@@ -47,8 +45,8 @@ void loop() {
       Serial.print(i);
       Serial.print("][1] = ");
       Serial.println(target[i][1]);
+      i += 1;
     }
-
     delay(1000);
   }
 }

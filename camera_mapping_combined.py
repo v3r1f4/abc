@@ -57,7 +57,6 @@ class ArUcoImageProcessor:
         rotation_matrix, _ = cv2.Rodrigues(rvec)
         rotation = Rotation.from_matrix(rotation_matrix)
         euler_angles = rotation.as_euler('xyz', degrees=True)
-        # print(position_camera, euler_angles)
         return position_camera, euler_angles
 
     def pixel_to_world_coordinates(self, pixel_point):
@@ -239,6 +238,10 @@ class CameraMappingCombined:
         self.last_command_time = {}  # Track last command time for each marker
         self.command_interval = 0.1  # Send commands every 100ms
         
+        # Terminal command thread
+        self.command_queue = queue.Queue()
+        self.terminal_thread_running = True
+        
     def apply_filter(self, marker_id, x, y, heading):
         """Áp dụng bộ lọc trung bình để giảm nhiễu cho từng marker riêng biệt"""
         # Khởi tạo filter history cho marker mới
@@ -273,13 +276,23 @@ class CameraMappingCombined:
         
         return filtered_x, filtered_y, filtered_heading
     
+    def terminal_input_thread(self):
+        while self.terminal_thread_running and self.running:
+            cmd = input(">>> ")
+                
+            if cmd.strip():
+                if not cmd.endswith('\n'):
+                    cmd += '\n'
+                self.processor.port.write(cmd.encode())
+                print(f"Đã gửi: {cmd.strip()}")
+                    
+                
+        self.terminal_thread_running = False
+    
     def camera_thread(self):
         """Thread để xử lý camera và phát hiện marker"""
         while self.running:
-            ret, frame = self.cap.read()
-            if not ret:
-                # print("Cannot read camera frame")
-                continue
+            _, frame = self.cap.read()
                 
             # Process frame to detect markers
             result_image, marker_info = self.processor.process_image(frame, set_origin=False)
@@ -294,7 +307,6 @@ class CameraMappingCombined:
             # Debug: Print all detected markers
             if marker_info:
                 detected_ids = list(marker_info.keys())
-                # print(f"Detected markers: {detected_ids}")
                 
                 # Kiểm tra và set origin nếu có marker origin
                 if self.origin_marker_id in marker_info:
@@ -303,8 +315,7 @@ class CameraMappingCombined:
                     self.origin_pixel_pos = tuple(origin_info['pixel_center'].astype(int))
                     if not self.origin_set:
                         self.origin_set = True
-                        # print(f"Origin set at marker ID{self.origin_marker_id}: 3D{self.origin_position_3d}, Pixel{self.origin_pixel_pos}")
-                
+        
                 # Process all detected markers
                 for robot_marker_id in detected_ids:
                     info = marker_info[robot_marker_id]
@@ -324,18 +335,13 @@ class CameraMappingCombined:
                     euler_angles = info['rotation_euler']
                     heading = np.radians(euler_angles[2])  # Z rotation in radians
                     
-                    cmd = f"P {x:.3f} {y:.3f} {np.degrees(heading):.1f}\n"
-                    self.processor.port.write(cmd.encode())
+                    # cmd = f"{x:.3f} {y:.3f} {np.degrees(heading):.1f}\n"
+                    # self.processor.port.write(cmd.encode())
                     
-                    #print(f"Marker ID{robot_marker_id} at Relative({x:.3f}, {y:.3f}), 3D({position_3d[0]:.3f}, {position_3d[1]:.3f}, {position_3d[2]:.3f}), heading: {np.degrees(heading):.1f}°")
-                    
-                    # Put new position in queue with marker ID and timestamp
                     try:
                         self.position_queue.put_nowait((robot_marker_id, x, y, heading, current_time))
                     except queue.Full:
                         pass
-            #else:
-            #    print("No markers detected")
                 
             # Send marker cleanup signal to remove old markers
             try:
@@ -376,9 +382,8 @@ class CameraMappingCombined:
         self.ax_map.axhline(0, color='black', zorder=1)
         self.ax_map.axvline(0, color='black', zorder=1)
         self.ax_map.grid(True, zorder=0)
-        self.ax_map.set_xlabel('x (meters)')
-        self.ax_map.set_ylabel('y (meters)')
-        self.ax_map.set_title("Multi-ArUco Markers 2D Position\n(Place marker ID0 as origin, other markers show relative position)")
+        self.ax_map.set_xlabel('x (mét)')
+        self.ax_map.set_ylabel('y (mét)')
         
     def init_animation(self):
         """Khởi tạo animation cho multi-marker"""
@@ -418,7 +423,6 @@ class CameraMappingCombined:
                         # Also remove filter data
                         if marker_id in self.marker_filters:
                             del self.marker_filters[marker_id]
-                        # print(f"REMOVED MARKER ID{marker_id} - not seen for {self.marker_timeout}s")
                     
                     continue
                 
@@ -436,7 +440,6 @@ class CameraMappingCombined:
                         'trail_x': [filtered_x], 'trail_y': [filtered_y],
                         'last_seen': timestamp
                     }
-                    # print(f"NEW MARKER ID{marker_id} created at ({filtered_x:.3f}, {filtered_y:.3f})")
                 else:
                     self.markers[marker_id]['x'] = filtered_x
                     self.markers[marker_id]['y'] = filtered_y
@@ -453,14 +456,9 @@ class CameraMappingCombined:
                         if len(self.markers[marker_id]['trail_x']) > 100:
                             self.markers[marker_id]['trail_x'].pop(0)
                             self.markers[marker_id]['trail_y'].pop(0)
-                
-                # print(f"Marker ID{marker_id} - Raw: ({x:.3f}, {y:.3f}, {np.degrees(heading):.1f}°) -> Filtered: ({filtered_x:.3f}, {filtered_y:.3f}, {np.degrees(filtered_heading):.1f}°)")
-                
+                             
             except queue.Empty:
                 break
-        
-        #if position_updates > 0:
-        #    print(f"Animation frame {frame}: Updated {position_updates} markers, total markers: {len(self.markers)}")
         
         # Clear map and redraw with all markers
         self.ax_map.clear()
@@ -474,9 +472,9 @@ class CameraMappingCombined:
         self.ax_map.axhline(0, color='black', zorder=1)
         self.ax_map.axvline(0, color='black', zorder=1)
         self.ax_map.grid(True, zorder=0)
-        self.ax_map.set_xlabel('x (meters)')
-        self.ax_map.set_ylabel('y (meters)')
-        self.ax_map.set_title("Multi-ArUco Markers 2D Position\n(Place marker ID0 as origin, other markers show relative position)")
+        self.ax_map.set_xlabel('x (mét)')
+        self.ax_map.set_ylabel('y (mét)')
+        self.ax_map.set_title("2D")
         
         # Draw all markers
         colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
@@ -553,17 +551,21 @@ class CameraMappingCombined:
         camera_thread = threading.Thread(target=self.camera_thread, daemon=True)
         camera_thread.start()
         
+        # Start terminal input thread
+        terminal_thread = threading.Thread(target=self.terminal_input_thread, daemon=True)
+        terminal_thread.start()
+        
         # Setup and run matplotlib animation
         self.setup_plot()
         
         FPS = 24
         ani = FuncAnimation(self.fig, self.update_animation, init_func=self.init_animation,
-                          interval=1000/FPS, blit=False, cache_frame_data=False)  # Changed blit=False for debugging
+                          interval=1000/FPS, blit=False, cache_frame_data=False)
         
         plt.show()
         
-        # Cleanup
         self.running = False
+        self.terminal_thread_running = False
         self.cap.release()
         cv2.destroyAllWindows()
 
