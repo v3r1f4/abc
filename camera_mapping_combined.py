@@ -334,8 +334,8 @@ class CameraMappingCombined:
                         self.position_queue.put_nowait((robot_marker_id, x, y, heading, current_time))
                     except queue.Full:
                         pass
-            else:
-                print("No markers detected")
+            #else:
+            #    print("No markers detected")
                 
             # Send marker cleanup signal to remove old markers
             try:
@@ -418,7 +418,7 @@ class CameraMappingCombined:
                         # Also remove filter data
                         if marker_id in self.marker_filters:
                             del self.marker_filters[marker_id]
-                        print(f"REMOVED MARKER ID{marker_id} - not seen for {self.marker_timeout}s")
+                        # print(f"REMOVED MARKER ID{marker_id} - not seen for {self.marker_timeout}s")
                     
                     continue
                 
@@ -436,7 +436,7 @@ class CameraMappingCombined:
                         'trail_x': [filtered_x], 'trail_y': [filtered_y],
                         'last_seen': timestamp
                     }
-                    print(f"NEW MARKER ID{marker_id} created at ({filtered_x:.3f}, {filtered_y:.3f})")
+                    # print(f"NEW MARKER ID{marker_id} created at ({filtered_x:.3f}, {filtered_y:.3f})")
                 else:
                     self.markers[marker_id]['x'] = filtered_x
                     self.markers[marker_id]['y'] = filtered_y
@@ -454,13 +454,13 @@ class CameraMappingCombined:
                             self.markers[marker_id]['trail_x'].pop(0)
                             self.markers[marker_id]['trail_y'].pop(0)
                 
-                print(f"Marker ID{marker_id} - Raw: ({x:.3f}, {y:.3f}, {np.degrees(heading):.1f}°) -> Filtered: ({filtered_x:.3f}, {filtered_y:.3f}, {np.degrees(filtered_heading):.1f}°)")
+                # print(f"Marker ID{marker_id} - Raw: ({x:.3f}, {y:.3f}, {np.degrees(heading):.1f}°) -> Filtered: ({filtered_x:.3f}, {filtered_y:.3f}, {np.degrees(filtered_heading):.1f}°)")
                 
             except queue.Empty:
                 break
         
-        if position_updates > 0:
-            print(f"Animation frame {frame}: Updated {position_updates} markers, total markers: {len(self.markers)}")
+        #if position_updates > 0:
+        #    print(f"Animation frame {frame}: Updated {position_updates} markers, total markers: {len(self.markers)}")
         
         # Clear map and redraw with all markers
         self.ax_map.clear()
@@ -556,7 +556,7 @@ class CameraMappingCombined:
         # Setup and run matplotlib animation
         self.setup_plot()
         
-        FPS = 60
+        FPS = 24
         ani = FuncAnimation(self.fig, self.update_animation, init_func=self.init_animation,
                           interval=1000/FPS, blit=False, cache_frame_data=False)  # Changed blit=False for debugging
         
