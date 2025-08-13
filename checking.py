@@ -4,7 +4,7 @@ import numpy as np
 # Giả sử bạn đã load được camera_matrix, dist_coeffs từ bước calib
 # camera_matrix = ...
 # dist_coeffs = ...
-calib_data = np.load('calib_data.npz')
+calib_data = np.load('calib_data_2.npz')
 camera_matrix = calib_data['mtx']
 dist_coeffs = calib_data['dist']
 
@@ -12,7 +12,7 @@ aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 parameters = cv2.aruco.DetectorParameters()
 
 # Đọc ảnh từ camera hoặc file
-frame = cv2.imread('Aruco/12.jpg')
+frame = cv2.imread('Aruco/checking_2.jpg')
 
 corners, ids, rejected = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=parameters)
 

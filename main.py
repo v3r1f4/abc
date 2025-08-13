@@ -4,7 +4,7 @@ import numpy as np
 
 class Camera:
     def __init__(self):
-        self.calib_data = np.load('calib_data.npz')
+        self.calib_data = np.load('calib_data_2.npz')
         self.camera_matrix = self.calib_data['mtx']
         self.dist_coeffs = self.calib_data['dist']
         self.origin_position = (1800, 100)

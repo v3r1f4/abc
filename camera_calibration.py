@@ -14,7 +14,9 @@ objp[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
 objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
 
-images = glob.glob('samples/*.jpg')
+folder = 'samples_2'
+
+images = glob.glob(f'{folder}/*.jpg')
 
 for fname in images:
     img = cv.imread(fname)
@@ -42,17 +44,7 @@ ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.sha
 # mtx: ma trận nội tại
 # dist: hệ số méo
 
-np.savez('calib_data.npz', mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
-
-img1 = cv.imread('samples/3.jpg')
-h1, w1 = img1.shape[:2]
-newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w1,h1), 0.5, (w1,h1))
-
-dst = cv.undistort(img1, mtx, dist, None, newcameramtx)
-
-x, y, w1, h1 = roi
-dst = dst[y:y+h1, x:x+w1]
-cv.imwrite('result3.jpg', dst)
+np.savez('calib_data_2.npz', mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
 
 mean_error = 0
 for i in range(len(objpoints)):
