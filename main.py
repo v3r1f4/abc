@@ -4,9 +4,14 @@ import numpy as np
 
 class Camera:
     def __init__(self):
-        self.calib_data = np.load('calib_data_2.npz')
-        self.camera_matrix = self.calib_data['mtx']
-        self.dist_coeffs = self.calib_data['dist']
+        self.calib_data_1 = np.load('calib_data_1.npz')
+        self.camera_matrix_1 = self.calib_data_1['mtx']
+        self.dist_coeffs_1 = self.calib_data_1['dist']
+
+        self.calib_data_2 = np.load('calib_data_2.npz')
+        self.camera_matrix_2 = self.calib_data_2['mtx']
+        self.dist_coeffs_2 = self.calib_data_2['dist']
+
         self.origin_position = (1800, 100)
 
     def draw_global_reference_frame(self):
@@ -32,7 +37,7 @@ class Camera:
         return self.camera_matrix, self.dist_coeffs
 
     def run(self):
-        self.cap = cv.VideoCapture(1, cv.CAP_DSHOW)
+        self.cap = cv.VideoCapture(2, cv.CAP_DSHOW)
 
         self.cap.set(cv.CAP_PROP_FRAME_WIDTH, 1900)
         self.cap.set(cv.CAP_PROP_FRAME_HEIGHT, 1000)
@@ -40,6 +45,18 @@ class Camera:
         _, self.frame = self.cap.read()
 
         return self.frame, self.cap
+
+    def stitch_cameras(self, frame1, frame2):
+        cv.ocl.setUseOpenCL(0)
+        
+        feature_extraction_algo = 'sift'
+        feature_to_match = 'bf'
+
+        frame1 = cv.cvtColor(frame1, cv.COLOR_BGR2RGB)
+        frame1_gray = cv.cvtColor(frame1, cv.COLOR_RGB2GRAY)
+
+        frame2 = cv.cvtColor(frame2, cv.COLOR_BGR2RGB)
+        frame2_gray = cv.cvtColor(frame2, cv.COLOR_RGB2GRAY)
 
 class ArUcoMarkers:
     def __init__(self, camera_matrix, dist_coeffs):
