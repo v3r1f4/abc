@@ -1,3 +1,4 @@
+imutils
 matplotlib
 opencv-python
 scipy
